@@ -256,9 +256,9 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
     unsigned long sensor_timestamp;
-    short gyro[3], accel_short[3], sensors;
+    short gyro[3], accel[3], sensors;
     unsigned char more;
-    long accel[3], quat[4];
+    long quat[4];
     double convFact = 1073741824.0;
     double q0 = 0.0;
     double q1 = 0.0;
@@ -304,7 +304,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      dmp_read_fifo(gyro, accel_short, quat, &sensor_timestamp, &sensors, &more);
+      dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
       if (sensors & INV_WXYZ_QUAT) {
           inv_build_quat(quat, 0, sensor_timestamp);
 
@@ -315,14 +315,12 @@ int main(void)
           q2 = (((double)quat[2])/convFact);
           q3 = (((double)quat[3])/convFact);
 
-          psi = atan2(-(2*q1*q2)+(2*q0*q3),(q0*q0)+(q1*q1)-(q2*q2)-(q3*q3))*M_1_PI*180;
-          theta = asin((2*q1*q3)+(2*q0*q2))*M_1_PI*180;
-          phi = atan2(-(2*q2*q3)+(2*q0*q1),(q3*q3)-(q1*q1)-(q2*q2)+(q0*q0))*M_1_PI*180;
-//
-//          sprintf(resStr,"%.3f,%.3f,%.3f\r\n",psi,theta,phi);
+          phi = atan2(2*((q0*q1)+(q2*q3)),1-(2*(pow(q1,2)+pow(q2,2))))*M_1_PI*180;
+          theta = asin(2*((q0*q2)-(q3*q1)))*M_1_PI*180;
+          psi = atan2(2*((q0*q3)+(q1*q2)),1-(2*(pow(q2,2)+pow(q3,2))))*M_1_PI*180;
+
           MPL_LOGI("%.3f,%.3f,%.3f\r\n",psi,theta,phi);
-//          sprintf(resStr,"%.3f,%.3f,%.3f,%.3f\r\n",q0,q1,q2,q3);
-//          HAL_UART_Transmit(&huart2, (uint8_t*)resStr, strlen(resStr), 1000);
+//          MPL_LOGI("%.3f,%.3f,%.3f,%.3f\r\n",q0,q1,q2,q3);
       }
 
       HAL_Delay(1);
