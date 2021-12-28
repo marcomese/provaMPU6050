@@ -110,21 +110,21 @@ void checkMPUI2C(void){
     switch(status){
         case HAL_OK:
             if(whoami == MPU6050ID)
-                MPL_LOGI("DEVICE OK");
+                MPL_LOGI("DEVICE OK\r\n");
             else
-                MPL_LOGI("ERR: DEVICE");
+                MPL_LOGI("ERR: DEVICE\r\n");
             break;
         case HAL_ERROR:
-            MPL_LOGI("ERR: STATUS");
+            MPL_LOGI("ERR: STATUS\r\n");
             break;
         case HAL_BUSY:
-            MPL_LOGI("ERR: BUSY");
+            MPL_LOGI("ERR: BUSY\r\n");
             break;
         case HAL_TIMEOUT:
-            MPL_LOGI("ERR: TIMEOUT");
+            MPL_LOGI("ERR: TIMEOUT\r\n");
             break;
         default:
-            MPL_LOGI("ERR: UNKNOWN");
+            MPL_LOGI("ERR: UNKNOWN\r\n");
             break;
     }
 
@@ -136,14 +136,14 @@ void initMPU(void){
     unsigned short gyro_rate, gyro_fsr;
 
     if(mpu_init() == 0)
-        MPL_LOGI("MPU INIT OK");
+        MPL_LOGI("MPU INIT OK\r\n");
     else
-        MPL_LOGI("ERR: MPU INIT");
+        MPL_LOGI("ERR: MPU INIT\r\n");
 
     if(inv_init_mpl() == 0)
-        MPL_LOGI("MPU INV INIT OK");
+        MPL_LOGI("MPU INV INIT OK\r\n");
     else
-        MPL_LOGI("ERR: MPU INV INIT");
+        MPL_LOGI("ERR: MPU INV INIT\r\n");
 
     inv_enable_quaternion();
     inv_enable_9x_sensor_fusion();
@@ -152,11 +152,11 @@ void initMPU(void){
     inv_enable_eMPL_outputs();
 
     if(inv_start_mpl() == 0)
-        MPL_LOGI("START MPL OK");
+        MPL_LOGI("START MPL OK\r\n");
     else if(inv_start_mpl() == INV_ERROR_NOT_AUTHORIZED)
-        MPL_LOGI("ERR: START MPL: NOAUTH");
+        MPL_LOGI("ERR: START MPL: NOAUTH\r\n");
     else
-        MPL_LOGI("ERR: START MPL");
+        MPL_LOGI("ERR: START MPL\r\n");
 
     mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL);
     mpu_configure_fifo(INV_XYZ_GYRO | INV_XYZ_ACCEL);
@@ -184,18 +184,17 @@ void initMPU(void){
     hal.next_temp_ms = 0;
 
     if(dmp_load_motion_driver_firmware() == 0)
-        MPL_LOGI("FIRMWARE OK");
+        MPL_LOGI("FIRMWARE OK\r\n");
     else
-        MPL_LOGI("ERR: FIRMWARE");
+        MPL_LOGI("ERR: FIRMWARE\r\n");
 
     dmp_set_orientation(inv_orientation_matrix_to_scalar(gyro_pdata.orientation));
 
     hal.dmp_features = DMP_FEATURE_6X_LP_QUAT     |
                        DMP_FEATURE_SEND_RAW_ACCEL |
                        DMP_FEATURE_SEND_CAL_GYRO  |
-                       DMP_FEATURE_GYRO_CAL;
-
-    hal.report ^= PRINT_EULER;
+                       DMP_FEATURE_GYRO_CAL       |
+                       DMP_FEATURE_TAP; // quest'ultima serve solo per evitare un bug che limita la frequenza della fifo
 
     dmp_enable_feature(hal.dmp_features);
     dmp_set_fifo_rate(DEFAULT_MPU_HZ);
@@ -212,12 +211,12 @@ static inline void run_self_test(void)
     result = mpu_run_self_test(gyro, accel);
 
     if (result == 0x7) {
-        MPL_LOGI("Passed!");
-        MPL_LOGI("accel: %7.4f %7.4f %7.4f\n",
+        MPL_LOGI("Passed!\r\n");
+        MPL_LOGI("accel: %7.4f %7.4f %7.4f\r\n",
                     accel[0]/65536.f,
                     accel[1]/65536.f,
                     accel[2]/65536.f);
-        MPL_LOGI("gyro: %7.4f %7.4f %7.4f\n",
+        MPL_LOGI("gyro: %7.4f %7.4f %7.4f\r\n",
                     gyro[0]/65536.f,
                     gyro[1]/65536.f,
                     gyro[2]/65536.f);
@@ -238,11 +237,11 @@ static inline void run_self_test(void)
     }
     else {
             if (!(result & 0x1))
-                MPL_LOGE("Gyro failed.\n");
+                MPL_LOGE("Gyro failed.\r\n");
             if (!(result & 0x2))
-                MPL_LOGE("Accel failed.\n");
+                MPL_LOGE("Accel failed.\r\n");
             if (!(result & 0x4))
-                MPL_LOGE("Compass failed.\n");
+                MPL_LOGE("Compass failed.\r\n");
      }
 
 }
@@ -255,18 +254,27 @@ static inline void run_self_test(void)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-    unsigned long sensor_timestamp;
-    short gyro[3], accel[3], sensors;
+    unsigned long sensorTimestamp = 0;
+    unsigned long oldSensorTimestamp = 0;
+    float dT = 0.0;
+
+    short gyro[3], accel_short[3], sensors;
+    long  quat[4];
     unsigned char more;
-    long quat[4];
-    double convFact = 1073741824.0;
-    double q0 = 0.0;
-    double q1 = 0.0;
-    double q2 = 0.0;
-    double q3 = 0.0;
-    double psi = 0.0;
-    double theta = 0.0;
-    double phi = 0.0;
+
+    float convFact = 1073741824.0;
+
+    float q0 = 0.0;
+    float q1 = 0.0;
+    float q2 = 0.0;
+    float q3 = 0.0;
+
+    float psi = 0.0;
+    float theta = 0.0;
+    float phi = 0.0;
+
+    float zeroPsi = 0.0;
+    uint8_t psiCalibDone = 0;
 
   /* USER CODE END 1 */
 
@@ -304,11 +312,12 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
-      if (sensors & INV_WXYZ_QUAT) {
-          inv_build_quat(quat, 0, sensor_timestamp);
+      dmp_read_fifo(gyro, accel_short, quat, &sensorTimestamp, &sensors, &more);
+      if (sensors & (INV_WXYZ_QUAT | INV_XYZ_ACCEL | INV_XYZ_GYRO)) {
+          dT = (float)(sensorTimestamp-oldSensorTimestamp)/1000.0;
+          oldSensorTimestamp = sensorTimestamp;
 
-          eMPL_send_quat(quat);
+          inv_build_quat(quat, 0, sensorTimestamp);
 
           q0 = (((double)quat[0])/convFact);
           q1 = (((double)quat[1])/convFact);
@@ -319,11 +328,21 @@ int main(void)
           theta = asin(2*((q0*q2)-(q3*q1)))*M_1_PI*180;
           psi = atan2(2*((q0*q3)+(q1*q2)),1-(2*(pow(q2,2)+pow(q3,2))))*M_1_PI*180;
 
-          MPL_LOGI("%.3f,%.3f,%.3f\r\n",psi,theta,phi);
-//          MPL_LOGI("%.3f,%.3f,%.3f,%.3f\r\n",q0,q1,q2,q3);
+          if(psiCalibDone == 0){
+              MPL_LOGI("CALIB: psi=%3.4f\tzeroPsi=%3.4f\tdT=%3.4f\tdpsi/dt=%3.4f\r\n",
+                      psi,zeroPsi,dT,fabsf((psi-zeroPsi)/dT));
+              if(fabsf((psi-zeroPsi)/dT) >= 0.001){
+                  zeroPsi = psi;
+              }else
+                  psiCalibDone = 1;
+          }else{
+              MPL_LOGI("\rphi=%3.2f\ttheta=%3.2f\tpsi=%3.2f",phi,theta,psi-zeroPsi);
+
+              eMPL_send_quat(quat);
+          }
       }
 
-      HAL_Delay(1);
+      inv_execute_on_data();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
