@@ -330,7 +330,8 @@ int main(void)
 
           if(psiCalibDone == 0){
               MPL_LOGI("CALIB: psi=%3.4f\tzeroPsi=%3.4f\tdT=%3.4f\tdpsi/dt=%3.4f\r\n",
-                      psi,zeroPsi,dT,fabsf((psi-zeroPsi)/dT));
+                       psi,zeroPsi,dT,fabsf((psi-zeroPsi)/dT));
+
               if(fabsf((psi-zeroPsi)/dT) >= 0.001){
                   zeroPsi = psi;
               }else
